@@ -11,6 +11,12 @@ const
 
 type
   TMD5String = string[32];
+  
+  TPathMode = (
+    pmFilenameOnly,    // Only filename
+    pmRelativePath,    // Path relative to input directory
+    pmFullPath         // Full absolute path
+  );
 
 procedure PrintVersion;
 begin
@@ -23,14 +29,18 @@ begin
   WriteLn;
   WriteLn('Options:');
   WriteLn('  --version      Show version information');
-  WriteLn('  -d <dir>      Process all files in directory');
+  WriteLn('  -d <dir>      Process files in directory (recursively)');
   WriteLn('  -f <file>     Process single file');
   WriteLn('  -o <file>     Output file (if omitted, prints to console)');
+  WriteLn('  -p <mode>     Path mode in output (default: name)');
+  WriteLn('                 name   - filename only');
+  WriteLn('                 rel    - relative path from input directory');
+  WriteLn('                 full   - full absolute path');
   WriteLn;
   WriteLn('Examples:');
-  WriteLn('  pasmd5 -d /path/to/dir -o hashes.txt');
+  WriteLn('  pasmd5 -d /path/to/dir -o hashes.txt -p rel');
   WriteLn('  pasmd5 -f document.pdf');
-  WriteLn('  pasmd5 -d . ');
+  WriteLn('  pasmd5 -d . -p full');
 end;
 
 function CalculateFileMD5(const AFileName: string): TMD5String;
@@ -67,32 +77,82 @@ begin
   end;
 end;
 
-procedure ProcessFile(const FileName: string; OutputList: TStringList; UseConsoleOutput: Boolean);
+function GetPathForOutput(const FullPath, BasePath: string; PathMode: TPathMode): string;
+begin
+  case PathMode of
+    pmFilenameOnly:
+      Result := ExtractFileName(FullPath);
+    pmRelativePath:
+      begin
+        if (Length(FullPath) >= Length(BasePath)) and
+           (Copy(FullPath, 1, Length(BasePath)) = BasePath) then
+          // Remove base path and leading separator if present
+          Result := Copy(FullPath, Length(BasePath) + 1, Length(FullPath))
+        else
+          Result := FullPath;
+        // Remove leading path separator if present
+        if (Length(Result) > 0) and (Result[1] = PathDelim) then
+          Delete(Result, 1, 1);
+      end;
+    pmFullPath:
+      Result := ExpandFileName(FullPath);
+  end;
+end;
+
+procedure ProcessFile(const FileName, BasePath: string; OutputList: TStringList; 
+                     UseConsoleOutput: Boolean; PathMode: TPathMode);
 var
   MD5Hash: TMD5String;
-  BaseName: string;
+  DisplayPath: string;
 begin
   try
     MD5Hash := CalculateFileMD5(FileName);
-    BaseName := ExtractFileName(FileName);
+    DisplayPath := GetPathForOutput(FileName, BasePath, PathMode);
     
     if UseConsoleOutput then
-      WriteLn(BaseName, ' ', MD5Hash)
+      WriteLn(DisplayPath, ' ', MD5Hash)
     else
-      OutputList.Add(BaseName + ' ' + MD5Hash);
+      OutputList.Add(DisplayPath + ' ' + MD5Hash);
   except
     on E: Exception do
       WriteLn('Warning: Could not process file "', FileName, '": ', E.Message);
   end;
 end;
 
+procedure ProcessDirectory(const DirPath, BasePath: string; OutputList: TStringList; 
+                         UseConsoleOutput: Boolean; PathMode: TPathMode);
+var
+  SearchRec: TSearchRec;
+begin
+  if FindFirst(DirPath + '*', faAnyFile, SearchRec) = 0 then
+  begin
+    try
+      repeat
+        if (SearchRec.Name <> '.') and (SearchRec.Name <> '..') then
+        begin
+          if (SearchRec.Attr and faDirectory) = faDirectory then
+            // Recursively process subdirectory
+            ProcessDirectory(DirPath + SearchRec.Name + PathDelim, 
+                          BasePath, OutputList, UseConsoleOutput, PathMode)
+          else
+            // Process file
+            ProcessFile(DirPath + SearchRec.Name, BasePath, 
+                      OutputList, UseConsoleOutput, PathMode);
+        end;
+      until FindNext(SearchRec) <> 0;
+    finally
+      FindClose(SearchRec);
+    end;
+  end;
+end;
+
 var
   InputDir, InputFile, OutputFile: string;
-  SearchRec: TSearchRec;
   OutputList: TStringList;
   UseConsoleOutput: Boolean;
   i: Integer;
   HasInputDir, HasInputFile: Boolean;
+  PathMode: TPathMode;
 begin
   try
     // Initialize flags
@@ -101,6 +161,7 @@ begin
     OutputFile := '';
     HasInputDir := False;
     HasInputFile := False;
+    PathMode := pmFilenameOnly; // Default path mode
     
     // Parse command line arguments
     i := 1;
@@ -138,6 +199,20 @@ begin
             OutputFile := ParamStr(i);
           end;
         end;
+        '-p':
+        begin
+          if i < ParamCount then
+          begin
+            Inc(i);
+            case LowerCase(ParamStr(i)) of
+              'name': PathMode := pmFilenameOnly;
+              'rel':  PathMode := pmRelativePath;
+              'full': PathMode := pmFullPath;
+            else
+              WriteLn('Warning: Unknown path mode "', ParamStr(i), '", using "name"');
+            end;
+          end;
+        end;
       end;
       Inc(i);
     end;
@@ -172,14 +247,9 @@ begin
           Exit;
         end;
 
+        InputDir := ExpandFileName(InputDir);
         InputDir := IncludeTrailingPathDelimiter(InputDir);
-        if FindFirst(InputDir + '*', faAnyFile - faDirectory, SearchRec) = 0 then
-        begin
-          repeat
-            ProcessFile(InputDir + SearchRec.Name, OutputList, UseConsoleOutput);
-          until FindNext(SearchRec) <> 0;
-          FindClose(SearchRec);
-        end;
+        ProcessDirectory(InputDir, InputDir, OutputList, UseConsoleOutput, PathMode);
       end
       else
       begin
@@ -191,7 +261,8 @@ begin
           Exit;
         end;
         
-        ProcessFile(InputFile, OutputList, UseConsoleOutput);
+        ProcessFile(InputFile, ExtractFilePath(InputFile), 
+                   OutputList, UseConsoleOutput, PathMode);
       end;
 
       // Save to output file if specified
