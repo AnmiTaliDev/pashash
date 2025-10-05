@@ -1,6 +1,6 @@
-# pasmd5
+# pashash
 
-CLI utility for calculating MD5 hashes of files, written in Pascal.
+CLI utility for calculating MD5 hashes of files, written in Pascal (more hash algorithms coming soon).
 
 ## Features
 
@@ -18,12 +18,12 @@ CLI utility for calculating MD5 hashes of files, written in Pascal.
 ### Build from source
 
 ```sh
-git clone https://github.com/anmitalidev/pasmd5
-cd pasmd5
+git clone https://github.com/anmitalidev/pashash
+cd pashash
 make
 ```
 
-The compiled binary will be placed in `bin/pasmd5`
+The compiled binary will be placed in `bin/pashash`
 
 ### Install system-wide (optional)
 
@@ -34,7 +34,7 @@ sudo make install
 ## Usage
 
 ```sh
-pasmd5 [OPTIONS]
+pashash [OPTIONS]
 ```
 
 ### Options
@@ -48,22 +48,22 @@ pasmd5 [OPTIONS]
 
 Process all files in current directory, output to console:
 ```sh
-pasmd5 -d .
+pashash -d .
 ```
 
 Process all files in specific directory, save to file:
 ```sh
-pasmd5 -d /path/to/dir -o hashes.txt
+pashash -d /path/to/dir -o hashes.txt
 ```
 
 Calculate hash for single file:
 ```sh
-pasmd5 -f document.pdf
+pashash -f document.pdf
 ```
 
 Calculate hash for single file and save to file:
 ```sh
-pasmd5 -f document.pdf -o hash.txt
+pashash -f document.pdf -o hash.txt
 ```
 
 ### Output format
@@ -80,7 +80,7 @@ document.pdf a6b1a01f8cb1c4e8b3e53b9c8d7f1d3b
 1. Clone the repository:
 ```sh
 git clone <repository-url>
-cd pasmd5
+cd pashash
 ```
 
 2. Build using make:
@@ -97,8 +97,8 @@ sudo make install
 
 Project structure:
 ```
-pasmd5/
-├── src/         # Source code
+pashash/
+├── src/         # Source code (modular units)
 ├── bin/         # Compiled binary (created after build)
 ├── Makefile     # Build configuration
 └── README.md    # This file
@@ -111,4 +111,4 @@ Build options in Makefile:
 
 ## License
 
-PasMD5 licenced under MIT
+PasHash licenced under MIT

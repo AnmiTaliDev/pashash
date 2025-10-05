@@ -7,7 +7,7 @@ SRC_DIR = src
 BIN_DIR = bin
 
 # Source and target
-TARGET = pasmd5
+TARGET = pashash
 SOURCE = $(SRC_DIR)/$(TARGET).pas
 
 # Default target
